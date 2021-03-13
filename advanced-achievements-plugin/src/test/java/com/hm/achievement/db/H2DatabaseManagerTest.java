@@ -12,12 +12,12 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.google.common.util.concurrent.MoreExecutors;
 import com.hm.achievement.AdvancedAchievements;
+import com.hm.achievement.category.NormalAchievements;
 import com.hm.achievement.db.data.AwardedDBAchievement;
 
 /**
@@ -42,8 +43,7 @@ import com.hm.achievement.db.data.AwardedDBAchievement;
 @ExtendWith(MockitoExtension.class)
 class H2DatabaseManagerTest {
 
-	private static final String TEST_ACHIEVEMENT = "TestAchievement";
-	private static final String TEST_MESSAGE = "TestMessage";
+	private static final String TEST_ACHIEVEMENT = "testachievement";
 
 	private static H2DatabaseManager db;
 
@@ -56,7 +56,7 @@ class H2DatabaseManagerTest {
 		Logger logger = Logger.getLogger("DBTestLogger");
 		YamlConfiguration config = YamlConfiguration
 				.loadConfiguration(new InputStreamReader(H2DatabaseManagerTest.class.getResourceAsStream("/config-h2.yml")));
-		db = new H2DatabaseManager(config, logger, Collections.emptyMap(), new DatabaseUpdater(logger, null), plugin) {
+		db = new H2DatabaseManager(config, logger, new DatabaseUpdater(logger, null), plugin) {
 
 			@Override
 			public void extractConfigurationParameters() {
@@ -79,14 +79,26 @@ class H2DatabaseManagerTest {
 	}
 
 	@Test
-	void testGetAchievementList() {
+	void testGetPlayerAchievementsList() {
 		registerAchievement();
 
 		List<AwardedDBAchievement> achievements = db.getPlayerAchievementsList(testUUID);
 		assertEquals(1, achievements.size());
 		AwardedDBAchievement found = achievements.get(0);
-		AwardedDBAchievement expected = new AwardedDBAchievement(testUUID, TEST_ACHIEVEMENT, TEST_MESSAGE,
-				found.getDateAwarded(), found.getFormattedDate());
+		AwardedDBAchievement expected = new AwardedDBAchievement(testUUID, TEST_ACHIEVEMENT, found.getDateAwarded(),
+				found.getFormattedDate());
+		assertEquals(expected, found);
+	}
+
+	@Test
+	void testGetAchievementsRecipientList() {
+		registerAchievement();
+
+		List<AwardedDBAchievement> achievements = db.getAchievementsRecipientList(TEST_ACHIEVEMENT);
+		assertEquals(1, achievements.size());
+		AwardedDBAchievement found = achievements.get(0);
+		AwardedDBAchievement expected = new AwardedDBAchievement(testUUID, TEST_ACHIEVEMENT, found.getDateAwarded(),
+				found.getFormattedDate());
 		assertEquals(expected, found);
 	}
 
@@ -112,40 +124,33 @@ class H2DatabaseManagerTest {
 	}
 
 	@Test
-	void testPlayerAchievementAmount() {
-		registerAchievement();
-
-		assertEquals(1, db.getPlayerAchievementsAmount(testUUID));
-	}
-
-	@Test
 	void testDeleteAchievement() {
-		testPlayerAchievementAmount();
+		registerAchievement();
 
 		db.deletePlayerAchievement(testUUID, TEST_ACHIEVEMENT);
 
-		assertEquals(0, db.getPlayerAchievementsAmount(testUUID));
+		assertEquals(0, db.getPlayerAchievementNames(testUUID).size());
 	}
 
 	@Test
 	void testDeleteAllAchievements() {
-		registerAchievement(testUUID, TEST_ACHIEVEMENT, TEST_MESSAGE);
-		registerAchievement(testUUID, TEST_ACHIEVEMENT + "2", TEST_MESSAGE);
+		registerAchievement(testUUID, TEST_ACHIEVEMENT);
+		registerAchievement(testUUID, TEST_ACHIEVEMENT + "2");
 
 		db.deleteAllPlayerAchievements(testUUID);
 
-		assertEquals(0, db.getPlayerAchievementsAmount(testUUID));
+		assertEquals(0, db.getPlayerAchievementNames(testUUID).size());
 	}
 
 	@Test
 	void testConnectionUpdate() {
-		assertEquals(0, db.getConnectionsAmount(testUUID));
+		assertEquals(0, db.getNormalAchievementAmount(testUUID, NormalAchievements.CONNECTIONS));
 
-		assertEquals(1, db.updateAndGetConnection(testUUID, createDateString()));
-		assertEquals(2, db.updateAndGetConnection(testUUID, createDateString()));
-		assertEquals(3, db.updateAndGetConnection(testUUID, createDateString()));
+		assertEquals(1, db.updateAndGetConnection(testUUID, 1));
+		assertEquals(3, db.updateAndGetConnection(testUUID, 2));
+		assertEquals(4, db.updateAndGetConnection(testUUID, 1));
 
-		assertEquals(3, db.getConnectionsAmount(testUUID));
+		assertEquals(4, db.getNormalAchievementAmount(testUUID, NormalAchievements.CONNECTIONS));
 	}
 
 	@Test
@@ -153,7 +158,7 @@ class H2DatabaseManagerTest {
 		long firstSave = 99L;
 
 		System.out.println("Save first achievement:  " + System.currentTimeMillis());
-		registerAchievement(testUUID, TEST_ACHIEVEMENT, TEST_MESSAGE, 100L);
+		registerAchievement(testUUID, TEST_ACHIEVEMENT, 100L);
 
 		long secondSave = 199L;
 
@@ -161,9 +166,9 @@ class H2DatabaseManagerTest {
 		String secondAch = "TestAchievement2";
 
 		System.out.println("Save second achievement: " + System.currentTimeMillis());
-		registerAchievement(secondUUID, TEST_ACHIEVEMENT, TEST_MESSAGE, 200L);
+		registerAchievement(secondUUID, TEST_ACHIEVEMENT, 200L);
 		System.out.println("Save third achievement:  " + System.currentTimeMillis());
-		registerAchievement(secondUUID, secondAch, TEST_MESSAGE, 200L);
+		registerAchievement(secondUUID, secondAch, 200L);
 
 		Map<String, Integer> expected = new LinkedHashMap<>();
 		expected.put(secondUUID.toString(), 2);
@@ -185,8 +190,8 @@ class H2DatabaseManagerTest {
 	void testGetAchievementNameList() {
 		registerAchievement();
 
-		List<String> expected = Collections.singletonList(TEST_ACHIEVEMENT);
-		List<String> achNames = db.getPlayerAchievementNamesList(testUUID);
+		Set<String> expected = Collections.singleton(TEST_ACHIEVEMENT);
+		Set<String> achNames = db.getPlayerAchievementNames(testUUID);
 		assertEquals(expected, achNames);
 	}
 
@@ -201,40 +206,35 @@ class H2DatabaseManagerTest {
 
 	@Test
 	void testGetPlayerConnectionDate() {
-		assertNull(db.getPlayerConnectionDate(testUUID));
+		assertFalse(db.hasPlayerConnectedToday(testUUID));
 
-		db.updateAndGetConnection(testUUID, createDateString());
+		db.updateAndGetConnection(testUUID, 1);
 
-		assertNotNull(db.getPlayerConnectionDate(testUUID));
+		assertTrue(db.hasPlayerConnectedToday(testUUID));
 	}
 
 	@Test
 	void testClearConnection() {
-		db.updateAndGetConnection(testUUID, createDateString());
+		db.updateAndGetConnection(testUUID, 1);
 
-		assertNotNull(db.getPlayerConnectionDate(testUUID));
+		assertTrue(db.hasPlayerConnectedToday(testUUID));
 
 		db.clearConnection(testUUID);
 
-		assertNull(db.getPlayerConnectionDate(testUUID));
-	}
-
-	private String createDateString() {
-		return new Date(System.currentTimeMillis()).toString();
+		assertFalse(db.hasPlayerConnectedToday(testUUID));
 	}
 
 	private void registerAchievement() {
-		registerAchievement(testUUID, TEST_ACHIEVEMENT, TEST_MESSAGE);
+		registerAchievement(testUUID, TEST_ACHIEVEMENT);
 	}
 
-	private void registerAchievement(UUID uuid, String ach, String msg) {
-		System.out.println("Saving test achievement: " + uuid + " | " + ach + " | " + msg);
-		db.registerAchievement(uuid, ach, msg);
+	private void registerAchievement(UUID uuid, String ach) {
+		registerAchievement(uuid, ach, System.currentTimeMillis());
 	}
 
-	private void registerAchievement(UUID uuid, String ach, String msg, long date) {
-		System.out.println("Saving test achievement: " + uuid + " | " + ach + " | " + msg);
-		db.registerAchievement(uuid, ach, msg, date);
+	private void registerAchievement(UUID uuid, String ach, long date) {
+		System.out.println("Saving test achievement: " + uuid + " | " + ach);
+		db.registerAchievement(uuid, ach, date);
 	}
 
 	private void clearDatabase() {

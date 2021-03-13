@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
-import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -22,7 +21,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import com.hm.achievement.AdvancedAchievements;
 
-@Singleton
 public class YamlUpdater {
 
 	private final AdvancedAchievements plugin;
@@ -44,21 +42,22 @@ public class YamlUpdater {
 	 */
 	public void update(String defaultConfigName, String userConfigName, YamlConfiguration userConfig)
 			throws InvalidConfigurationException, IOException {
-		List<String> defaultLines = new BufferedReader(new InputStreamReader(plugin.getResource(defaultConfigName), UTF_8))
-				.lines()
-				.collect(Collectors.toList());
-		YamlConfiguration defaultConfig = new YamlConfiguration();
-		defaultConfig.loadFromString(StringUtils.join(defaultLines, System.lineSeparator()));
+		try (BufferedReader defaultConfigReader = new BufferedReader(
+				new InputStreamReader(plugin.getResource(defaultConfigName), UTF_8))) {
+			List<String> defaultLines = defaultConfigReader.lines().collect(Collectors.toList());
+			YamlConfiguration defaultConfig = new YamlConfiguration();
+			defaultConfig.loadFromString(StringUtils.join(defaultLines, System.lineSeparator()));
 
-		List<String> sectionsToAppend = defaultConfig.getKeys(false).stream()
-				.filter(key -> !userConfig.getKeys(false).contains(key))
-				.flatMap(missingKey -> extractSectionForMissingKey(defaultLines, missingKey))
-				.collect(Collectors.toList());
+			List<String> sectionsToAppend = defaultConfig.getKeys(false).stream()
+					.filter(key -> !userConfig.getKeys(false).contains(key))
+					.flatMap(missingKey -> extractSectionForMissingKey(defaultLines, missingKey))
+					.collect(Collectors.toList());
 
-		if (!sectionsToAppend.isEmpty()) {
-			Path userConfigPath = Paths.get(plugin.getDataFolder().getPath(), userConfigName);
-			Files.write(userConfigPath, sectionsToAppend, StandardOpenOption.APPEND);
-			userConfig.load(userConfigPath.toFile());
+			if (!sectionsToAppend.isEmpty()) {
+				Path userConfigPath = Paths.get(plugin.getDataFolder().getPath(), userConfigName);
+				Files.write(userConfigPath, sectionsToAppend, StandardOpenOption.APPEND);
+				userConfig.load(userConfigPath.toFile());
+			}
 		}
 	}
 

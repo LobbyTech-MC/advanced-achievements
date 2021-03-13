@@ -1,8 +1,5 @@
 package com.hm.achievement.listener.statistics;
 
-import java.util.List;
-import java.util.Map;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -14,8 +11,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerShearEntityEvent;
 
 import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
-import com.hm.achievement.utils.RewardParser;
 
 /**
  * Listener class to deal with Shear achievements (only sheep are taken into account).
@@ -27,9 +24,9 @@ import com.hm.achievement.utils.RewardParser;
 public class ShearsListener extends AbstractListener {
 
 	@Inject
-	public ShearsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser) {
-		super(NormalAchievements.SHEARS, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+	public ShearsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion, AchievementMap achievementMap,
+			CacheManager cacheManager) {
+		super(NormalAchievements.SHEARS, mainConfig, serverVersion, achievementMap, cacheManager);
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

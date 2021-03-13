@@ -1,8 +1,5 @@
 package com.hm.achievement.listener.statistics;
 
-import java.util.List;
-import java.util.Map;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -16,8 +13,8 @@ import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
 import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
-import com.hm.achievement.utils.RewardParser;
 
 /**
  * Listener class to deal with Snowballsachievements.
@@ -29,9 +26,9 @@ import com.hm.achievement.utils.RewardParser;
 public class SnowballsListener extends AbstractListener {
 
 	@Inject
-	public SnowballsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser) {
-		super(NormalAchievements.SNOWBALLS, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+	public SnowballsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion, AchievementMap achievementMap,
+			CacheManager cacheManager) {
+		super(NormalAchievements.SNOWBALLS, mainConfig, serverVersion, achievementMap, cacheManager);
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

@@ -1,8 +1,6 @@
 package com.hm.achievement.listener.statistics;
 
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
@@ -19,8 +17,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDeathEvent;
 
 import com.hm.achievement.category.MultipleAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
-import com.hm.achievement.utils.RewardParser;
 
 /**
  * Listener class to deal with Kills achievements.
@@ -32,9 +30,9 @@ import com.hm.achievement.utils.RewardParser;
 public class KillsListener extends AbstractListener {
 
 	@Inject
-	public KillsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser) {
-		super(MultipleAchievements.KILLS, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+	public KillsListener(@Named("main") YamlConfiguration mainConfig, int serverVersion, AchievementMap achievementMap,
+			CacheManager cacheManager) {
+		super(MultipleAchievements.KILLS, mainConfig, serverVersion, achievementMap, cacheManager);
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

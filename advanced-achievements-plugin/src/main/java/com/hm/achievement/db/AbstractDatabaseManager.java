@@ -8,13 +8,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.DateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,6 +43,8 @@ import com.hm.achievement.lifecycle.Reloadable;
  */
 public abstract class AbstractDatabaseManager implements Reloadable {
 
+	static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
 	// Used to do perform the database write operations asynchronously.
 	ExecutorService pool;
 	// Connection to the database; remains opened and shared.
@@ -49,17 +55,15 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 
 	volatile String prefix;
 
-	private final Map<String, String> namesToDisplayNames;
 	private final DatabaseUpdater databaseUpdater;
 
 	private DateFormat dateFormat;
 	private boolean configBookChronologicalOrder;
 
-	public AbstractDatabaseManager(YamlConfiguration mainConfig, Logger logger, Map<String, String> namesToDisplayNames,
-			DatabaseUpdater databaseUpdater, String driverPath) {
+	public AbstractDatabaseManager(YamlConfiguration mainConfig, Logger logger, DatabaseUpdater databaseUpdater,
+			String driverPath) {
 		this.mainConfig = mainConfig;
 		this.logger = logger;
-		this.namesToDisplayNames = namesToDisplayNames;
 		this.databaseUpdater = databaseUpdater;
 		this.driverPath = driverPath;
 		// We expect to execute many short writes to the database. The pool can grow dynamically under high load and
@@ -106,9 +110,10 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 		}
 
 		databaseUpdater.renameExistingTables(this);
-		databaseUpdater.initialiseTables(this);
-		databaseUpdater.updateOldDBToTimestamps(this);
-		Arrays.stream(MultipleAchievements.values()).forEach(m -> databaseUpdater.updateOldDBColumnSize(this, m));
+		int size = mainConfig.getInt("TableMaxSizeOfGroupedSubcategories");
+		databaseUpdater.initialiseTables(this, size);
+		databaseUpdater.removeAchievementDescriptions(this);
+		Arrays.stream(MultipleAchievements.values()).forEach(m -> databaseUpdater.updateOldDBColumnSize(this, m, size));
 	}
 
 	/**
@@ -180,17 +185,18 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 	 * @param uuid
 	 * @return array list with Name parameters
 	 */
-	public List<String> getPlayerAchievementNamesList(UUID uuid) {
+	public Set<String> getPlayerAchievementNames(UUID uuid) {
 		String sql = "SELECT achievement FROM " + prefix + "achievements WHERE playername = ?";
-		return ((SQLReadOperation<List<String>>) () -> {
-			List<String> achievementNamesList = new ArrayList<>();
+		return ((SQLReadOperation<Set<String>>) () -> {
+			Set<String> achievementNamesList = new HashSet<>();
 			Connection conn = getSQLConnection();
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
 				ps.setFetchSize(1000);
-				ResultSet rs = ps.executeQuery();
-				while (rs.next()) {
-					achievementNamesList.add(rs.getString(1));
+				try (ResultSet rs = ps.executeQuery()) {
+					while (rs.next()) {
+						achievementNamesList.add(rs.getString(1));
+					}
 				}
 			}
 			return achievementNamesList;
@@ -211,9 +217,10 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
 				ps.setString(2, achName);
-				ResultSet rs = ps.executeQuery();
-				if (rs.next()) {
-					return dateFormat.format(new Date(rs.getTimestamp(1).getTime()));
+				try (ResultSet rs = ps.executeQuery()) {
+					if (rs.next()) {
+						return dateFormat.format(new Date(rs.getTimestamp(1).getTime()));
+					}
 				}
 			}
 			return null;
@@ -247,25 +254,6 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 	}
 
 	/**
-	 * Gets the total number of achievements received by a player, using an UUID.
-	 *
-	 * @param uuid
-	 * @return number of achievements
-	 */
-	public int getPlayerAchievementsAmount(UUID uuid) {
-		String sql = "SELECT COUNT(*) FROM " + prefix + "achievements WHERE playername = ?";
-		return ((SQLReadOperation<Integer>) () -> {
-			Connection conn = getSQLConnection();
-			try (PreparedStatement ps = conn.prepareStatement(sql)) {
-				ps.setString(1, uuid.toString());
-				ResultSet rs = ps.executeQuery();
-				rs.next();
-				return rs.getInt(1);
-			}
-		}).executeOperation("counting a player's achievements");
-	}
-
-	/**
 	 * Constructs a mapping of players with the most achievements over a given period.
 	 *
 	 * @param start
@@ -285,9 +273,10 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 					ps.setTimestamp(1, new Timestamp(start));
 				}
 				ps.setFetchSize(1000);
-				ResultSet rs = ps.executeQuery();
-				while (rs.next()) {
-					topList.put(rs.getString(1), rs.getInt(2));
+				try (ResultSet rs = ps.executeQuery()) {
+					while (rs.next()) {
+						topList.put(rs.getString(1), rs.getInt(2));
+					}
 				}
 			}
 			return topList;
@@ -295,33 +284,20 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 	}
 
 	/**
-	 * Registers a new achievement for a player with the reception time set to now.
-	 *
-	 * @param uuid
-	 * @param achName
-	 * @param achMessage
-	 */
-	public void registerAchievement(UUID uuid, String achName, String achMessage) {
-		registerAchievement(uuid, achName, achMessage, System.currentTimeMillis());
-	}
-
-	/**
 	 * Registers a new achievement for a player.
 	 *
 	 * @param uuid
 	 * @param achName
-	 * @param achMessage
 	 * @param epochMs Moment the achievement was registered at.
 	 */
-	void registerAchievement(UUID uuid, String achName, String achMessage, long epochMs) {
-		String sql = "REPLACE INTO " + prefix + "achievements VALUES (?,?,?,?)";
+	public void registerAchievement(UUID uuid, String achName, long epochMs) {
+		String sql = "REPLACE INTO " + prefix + "achievements VALUES (?,?,?)";
 		((SQLWriteOperation) () -> {
 			Connection conn = getSQLConnection();
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
 				ps.setString(2, achName);
-				ps.setString(3, achMessage == null ? "" : achMessage);
-				ps.setTimestamp(4, new Timestamp(epochMs));
+				ps.setTimestamp(3, new Timestamp(epochMs));
 				ps.execute();
 			}
 		}).executeOperation(pool, logger, "registering an achievement");
@@ -341,7 +317,9 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
 				ps.setString(2, achName);
-				return ps.executeQuery().next();
+				try (ResultSet rs = ps.executeQuery()) {
+					return rs.next();
+				}
 			}
 		}).executeOperation("checking for an achievement");
 	}
@@ -360,9 +338,10 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 			Connection conn = getSQLConnection();
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
-				ResultSet rs = ps.executeQuery();
-				if (rs.next()) {
-					return rs.getLong(dbName);
+				try (ResultSet rs = ps.executeQuery()) {
+					if (rs.next()) {
+						return rs.getLong(dbName);
+					}
 				}
 			}
 			return 0L;
@@ -386,9 +365,10 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
 				ps.setString(2, subcategory);
-				ResultSet rs = ps.executeQuery();
-				if (rs.next()) {
-					return rs.getLong(dbName);
+				try (ResultSet rs = ps.executeQuery()) {
+					if (rs.next()) {
+						return rs.getLong(dbName);
+					}
 				}
 			}
 			return 0L;
@@ -396,77 +376,56 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 	}
 
 	/**
-	 * Returns a player's number of connections on separate days (used by GUI).
+	 * Indicates whether a player has already connected today.
 	 *
 	 * @param uuid
-	 * @return connections statistic
+	 * @return true if the player has already connected today, false otherwise
 	 */
-	public int getConnectionsAmount(UUID uuid) {
-		String dbName = NormalAchievements.CONNECTIONS.toDBName();
-		String sql = "SELECT " + dbName + " FROM " + prefix + dbName + " WHERE playername = ?";
-		return ((SQLReadOperation<Integer>) () -> {
-			Connection conn = getSQLConnection();
-			try (PreparedStatement ps = conn.prepareStatement(sql)) {
-				ps.setString(1, uuid.toString());
-				ResultSet rs = ps.executeQuery();
-				if (rs.next()) {
-					return rs.getInt(dbName);
-				}
-			}
-			return 0;
-		}).executeOperation("retrieving connection statistics");
-	}
-
-	/**
-	 * Gets a player's last connection date.
-	 *
-	 * @param uuid
-	 * @return String with date
-	 */
-	public String getPlayerConnectionDate(UUID uuid) {
+	public boolean hasPlayerConnectedToday(UUID uuid) {
 		String dbName = NormalAchievements.CONNECTIONS.toDBName();
 		String sql = "SELECT date FROM " + prefix + dbName + " WHERE playername = ?";
-		return ((SQLReadOperation<String>) () -> {
+		return ((SQLReadOperation<Boolean>) () -> {
 			Connection conn = getSQLConnection();
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				ps.setString(1, uuid.toString());
-				ResultSet rs = ps.executeQuery();
-				if (rs.next()) {
-					return rs.getString("date");
+				try (ResultSet rs = ps.executeQuery()) {
+					if (rs.next()) {
+						return LocalDate.now().format(DATE_TIME_FORMATTER).equals(rs.getString("date"));
+					}
 				}
 			}
-			return null;
+			return false;
 		}).executeOperation("retrieving a player's last connection date");
 	}
 
 	/**
-	 * Updates a player's number of connections and last connection date and returns number of connections (used by
-	 * Connections listener).
+	 * Updates a player's number of connections and last connection date and returns number of connections.
 	 *
 	 * @param uuid
-	 * @param date
+	 * @param amount
 	 * @return connections statistic
 	 */
-	public int updateAndGetConnection(UUID uuid, String date) {
+	public int updateAndGetConnection(UUID uuid, int amount) {
 		String dbName = NormalAchievements.CONNECTIONS.toDBName();
 		String sqlRead = "SELECT " + dbName + " FROM " + prefix + dbName + " WHERE playername = ?";
 		return ((SQLReadOperation<Integer>) () -> {
 			Connection conn = getSQLConnection();
 			try (PreparedStatement ps = conn.prepareStatement(sqlRead)) {
 				ps.setString(1, uuid.toString());
-				ResultSet rs = ps.executeQuery();
-				int connections = rs.next() ? rs.getInt(dbName) + 1 : 1;
-				String sqlWrite = "REPLACE INTO " + prefix + dbName + " VALUES (?,?,?)";
-				((SQLWriteOperation) () -> {
-					Connection writeConn = getSQLConnection();
-					try (PreparedStatement writePrep = writeConn.prepareStatement(sqlWrite)) {
-						writePrep.setString(1, uuid.toString());
-						writePrep.setInt(2, connections);
-						writePrep.setString(3, date);
-						writePrep.execute();
-					}
-				}).executeOperation(pool, logger, "updating connection date and count");
-				return connections;
+				try (ResultSet rs = ps.executeQuery()) {
+					int connections = rs.next() ? rs.getInt(dbName) + amount : amount;
+					String sqlWrite = "REPLACE INTO " + prefix + dbName + " VALUES (?,?,?)";
+					((SQLWriteOperation) () -> {
+						Connection writeConn = getSQLConnection();
+						try (PreparedStatement writePrep = writeConn.prepareStatement(sqlWrite)) {
+							writePrep.setString(1, uuid.toString());
+							writePrep.setInt(2, connections);
+							writePrep.setString(3, LocalDate.now().format(DATE_TIME_FORMATTER));
+							writePrep.execute();
+						}
+					}).executeOperation(pool, logger, "updating connection date and count");
+					return connections;
+				}
 			}
 		}).executeOperation("handling connection event");
 	}
@@ -542,15 +501,8 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 				ps.setString(1, uuid.toString());
 				try (ResultSet rs = ps.executeQuery()) {
 					while (rs.next()) {
-						String achName = rs.getString(2);
-						String displayName = namesToDisplayNames.get(achName);
-						if (StringUtils.isNotBlank(displayName)) {
-							achName = displayName;
-						}
-						String achMsg = rs.getString(3);
-						Timestamp dateAwarded = rs.getTimestamp(4);
-
-						achievements.add(new AwardedDBAchievement(uuid, achName, achMsg, dateAwarded.getTime(),
+						Timestamp dateAwarded = rs.getTimestamp(3);
+						achievements.add(new AwardedDBAchievement(uuid, rs.getString(2), dateAwarded.getTime(),
 								dateFormat.format(dateAwarded)));
 					}
 				}
@@ -586,9 +538,8 @@ public abstract class AbstractDatabaseManager implements Reloadable {
 							continue;
 						}
 						Date dateAwarded = new Date(rs.getTimestamp("date").getTime());
-
-						achievements.add(new AwardedDBAchievement(uuid, namesToDisplayNames.get(achievementName), "",
-								dateAwarded.getTime(), dateFormat.format(dateAwarded)));
+						achievements.add(new AwardedDBAchievement(uuid, achievementName, dateAwarded.getTime(),
+								dateFormat.format(dateAwarded)));
 					}
 				}
 			}

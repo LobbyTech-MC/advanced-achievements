@@ -1,7 +1,6 @@
 package com.hm.achievement.db;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.inject.Named;
@@ -17,8 +16,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 public class MySQLDatabaseManager extends AbstractRemoteDatabaseManager {
 
 	public MySQLDatabaseManager(@Named("main") YamlConfiguration mainConfig, Logger logger,
-			@Named("ntd") Map<String, String> namesToDisplayNames, DatabaseUpdater databaseUpdater) {
-		super(mainConfig, logger, namesToDisplayNames, databaseUpdater, "com.mysql.jdbc.Driver", "mysql");
+			DatabaseUpdater databaseUpdater) {
+		super(mainConfig, logger, databaseUpdater, "com.mysql.jdbc.Driver", "mysql");
 	}
 
 	@Override

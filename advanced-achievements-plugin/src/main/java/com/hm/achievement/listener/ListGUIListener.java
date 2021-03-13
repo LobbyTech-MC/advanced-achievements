@@ -1,15 +1,16 @@
 package com.hm.achievement.listener;
 
 import static com.hm.achievement.gui.AchievementInventoryHolder.MAIN_GUI_PAGE;
+import static com.hm.achievement.gui.CategoryGUI.ROW_SIZE;
 
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
 
 import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.Named;
 
+import org.apache.commons.lang3.StringUtils;
+import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -31,16 +32,18 @@ import com.hm.achievement.gui.MainGUI;
  *
  * @author Pyves
  */
-@Singleton
 public class ListGUIListener implements Listener {
 
+	private final YamlConfiguration mainConfig;
 	private final Set<Category> disabledCategories;
 	private final MainGUI mainGUI;
 	private final CategoryGUI categoryGUI;
 	private final GUIItems guiItems;
 
 	@Inject
-	public ListGUIListener(Set<Category> disabledCategories, MainGUI mainGUI, CategoryGUI categoryGUI, GUIItems guiItems) {
+	public ListGUIListener(@Named("main") YamlConfiguration mainConfig, Set<Category> disabledCategories, MainGUI mainGUI,
+			CategoryGUI categoryGUI, GUIItems guiItems) {
+		this.mainConfig = mainConfig;
 		this.disabledCategories = disabledCategories;
 		this.mainGUI = mainGUI;
 		this.categoryGUI = categoryGUI;
@@ -63,7 +66,8 @@ public class ListGUIListener implements Listener {
 			return;
 		}
 
-		int currentPage = ((AchievementInventoryHolder) inventory.getHolder()).getPageIndex();
+		AchievementInventoryHolder holder = (AchievementInventoryHolder) inventory.getHolder();
+		int currentPage = holder.getPageIndex();
 		Player player = (Player) event.getWhoClicked();
 		if (currentPage == MAIN_GUI_PAGE) {
 			// Main GUI, check whether player can interact with the selected item.
@@ -73,43 +77,20 @@ public class ListGUIListener implements Listener {
 			return;
 		}
 
-		ItemStack categoryItem = inventory.getItem(0);
 		// Check whether a navigation button was clicked in a category GUI.
-		if (isButtonClicked(inventory, clickedItem, event.getRawSlot(), guiItems.getBackButton())) {
-			mainGUI.displayMainGUI(player);
-		} else if (isButtonClicked(inventory, clickedItem, event.getRawSlot(), guiItems.getPreviousButton())) {
-			categoryGUI.displayCategoryGUI(categoryItem, player, currentPage - 1);
-		} else if (isButtonClicked(inventory, clickedItem, event.getRawSlot(), guiItems.getNextButton())) {
-			categoryGUI.displayCategoryGUI(categoryItem, player, currentPage + 1);
-		}
-	}
-
-	/**
-	 * Verifies whether the user has clicked on the given navigation button.
-	 *
-	 * @param inventory
-	 * @param clickedItem
-	 * @param rawSlot
-	 * @param button
-	 * @return true if the button is clicked, false otherwise
-	 */
-	private boolean isButtonClicked(Inventory inventory, ItemStack clickedItem, int rawSlot, ItemStack button) {
-		if (clickedItem.isSimilar(button)) {
-			// Clicked item seems to be the button. But player could have clicked on item in his personal inventory that
-			// matches the properties of the button used by Advanced Achievements. The first item matching the
-			// properties of the button is the real one, check that this is indeed the clicked one.
-			Map<Integer, ItemStack> backButtonCandidates = new TreeMap<>(inventory.all(clickedItem.getType()));
-			for (Entry<Integer, ItemStack> entry : backButtonCandidates.entrySet()) {
-				if (clickedItem.isSimilar(entry.getValue())) {
-					// Found real button. Did the player click on it?
-					if (entry.getKey() == rawSlot) {
-						return true;
-					}
-					break;
-				}
+		if (event.getRawSlot() == inventory.getSize() - (ROW_SIZE + 1) / 2) {
+			String command = mainConfig.getString("OverrideBackButtonBehaviour");
+			if (StringUtils.isBlank(command)) {
+				mainGUI.displayMainGUI(player);
+			} else {
+				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(),
+						StringUtils.replace(command, "PLAYER", player.getName()));
 			}
+		} else if (event.getRawSlot() == inventory.getSize() - ROW_SIZE) {
+			categoryGUI.displayCategoryGUI(holder.getCategoryItem(), player, currentPage - 1);
+		} else if (event.getRawSlot() == inventory.getSize() - 1) {
+			categoryGUI.displayCategoryGUI(holder.getCategoryItem(), player, currentPage + 1);
 		}
-		return false;
 	}
 
 	/**

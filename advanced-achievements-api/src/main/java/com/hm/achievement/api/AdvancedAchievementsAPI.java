@@ -1,12 +1,14 @@
 package com.hm.achievement.api;
 
-import com.hm.achievement.category.MultipleAchievements;
-import com.hm.achievement.category.NormalAchievements;
-import org.bukkit.entity.Player;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import org.bukkit.entity.Player;
+
+import com.hm.achievement.category.MultipleAchievements;
+import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.domain.AwardedAchievement;
 
 /**
  * Advanced Achievements API. Unless explicitly stated otherwise, implementations are expected to be thread-safe.
@@ -14,17 +16,6 @@ import java.util.UUID;
  * @author Pyves
  */
 public interface AdvancedAchievementsAPI {
-
-	/**
-	 * Formats Advanced Achievements's version as an integer. The version is computed as follows: 100 * major + 10 *
-	 * minor + patch. For instance plugin version 5.5.0 will return 550; plugin version 5.1.2 will return 512.
-	 *
-	 * @deprecated use {@link #getAdvancedAchievementsVersion()} instead
-	 * @return version code
-	 * @since 5.8.0
-	 */
-	@Deprecated
-	int getAdvancedAchievementsVersionCode();
 
 	/**
 	 * Returns Advanced Achievement's version as an object. Version 5.10.1 corresponds to major version 5, minor version
@@ -37,8 +28,7 @@ public interface AdvancedAchievementsAPI {
 
 	/**
 	 * Checks whether player has received achievement {@code achievementName}. The underlying implementation of this API
-	 * method benefits from Advanced Achievements caching when the player is online and if method called from the main
-	 * server thread.
+	 * method benefits from Advanced Achievements caching if method called from the main server thread.
 	 *
 	 * @param player should not be null
 	 * @param achievementName as defined by the Name parameter in Advanced Achievements config.yml, should not be empty
@@ -48,17 +38,35 @@ public interface AdvancedAchievementsAPI {
 	boolean hasPlayerReceivedAchievement(UUID player, String achievementName);
 
 	/**
+	 * Retrieves all achievements currently registered with the plugin.
+	 *
+	 * @return list of {@code com.hm.achievement.domain.Achievement} objects received by the player
+	 * @since 7.0.0
+	 */
+	List<com.hm.achievement.domain.Achievement> getAllAchievements();
+
+	/**
+	 * Retrieves all achievements received by the player.
+	 *
+	 * @param player should not be null
+	 * @return list of {@code AwardedAchievement} objects received by the player
+	 * @since 7.0.0
+	 */
+	List<AwardedAchievement> getPlayerAchievements(UUID player);
+
+	/**
 	 * Retrieves all achievements received by the player.
 	 *
 	 * @param player should not be null
 	 * @return list of {@code Achievement} objects received by the player
 	 * @since 5.8.0
+	 * @deprecated use {@link AdvancedAchievementsAPI#getPlayerAchievements(UUID)} instead
 	 */
+	@Deprecated
 	List<Achievement> getPlayerAchievementsList(UUID player);
 
 	/**
-	 * Retrieves the total number of achievements received by the player. The underlying implementation of this API
-	 * method benefits from Advanced Achievements caching when the player is online.
+	 * Retrieves the total number of achievements received by the player.
 	 *
 	 * @param player should not be null
 	 * @return total achievements by the player
@@ -90,7 +98,7 @@ public interface AdvancedAchievementsAPI {
 
 	/**
 	 * Retrieves a statistic for a normal category. The underlying implementation of this API method benefits from
-	 * Advanced Achievements caching when the player is online and if method called from the main server thread.
+	 * Advanced Achievements caching if method called from the main server thread.
 	 *
 	 * @param player should not be null
 	 * @param category should not be null
@@ -101,7 +109,7 @@ public interface AdvancedAchievementsAPI {
 
 	/**
 	 * Retrieves a statistic for a multiple category. The underlying implementation of this API method benefits from
-	 * Advanced Achievements caching when the player is online and if method called from the main server thread.
+	 * Advanced Achievements caching if method called from the main server thread.
 	 *
 	 * @param player should not be null
 	 * @param category should not be null
@@ -162,6 +170,7 @@ public interface AdvancedAchievementsAPI {
 		}
 	}
 
+	@Deprecated
 	final class Achievement {
 
 		public final String name;

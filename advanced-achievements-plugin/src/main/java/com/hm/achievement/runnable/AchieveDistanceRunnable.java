@@ -1,7 +1,6 @@
 package com.hm.achievement.runnable;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -19,9 +18,9 @@ import org.bukkit.util.NumberConversions;
 
 import com.hm.achievement.category.Category;
 import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
 import com.hm.achievement.lifecycle.Cleanable;
-import com.hm.achievement.utils.RewardParser;
 import com.hm.achievement.utils.StatisticIncreaseHandler;
 
 /**
@@ -40,9 +39,8 @@ public class AchieveDistanceRunnable extends StatisticIncreaseHandler implements
 
 	@Inject
 	public AchieveDistanceRunnable(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser,
-			Set<Category> disabledCategories) {
-		super(mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+			AchievementMap achievementMap, CacheManager cacheManager, Set<Category> disabledCategories) {
+		super(mainConfig, serverVersion, achievementMap, cacheManager);
 		this.disabledCategories = disabledCategories;
 	}
 
@@ -54,8 +52,8 @@ public class AchieveDistanceRunnable extends StatisticIncreaseHandler implements
 	}
 
 	@Override
-	public void cleanPlayerData(UUID uuid) {
-		playerLocations.remove(uuid);
+	public void cleanPlayerData() {
+		playerLocations.keySet().removeIf(player -> !Bukkit.getOfflinePlayer(player).isOnline());
 	}
 
 	@Override
@@ -141,6 +139,6 @@ public class AchieveDistanceRunnable extends StatisticIncreaseHandler implements
 		}
 
 		long distance = cacheManager.getAndIncrementStatisticAmount(category, player.getUniqueId(), difference);
-		checkThresholdsAndAchievements(player, category.toString(), distance);
+		checkThresholdsAndAchievements(player, category, distance);
 	}
 }

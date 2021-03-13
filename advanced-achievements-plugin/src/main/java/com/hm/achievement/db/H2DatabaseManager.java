@@ -1,7 +1,6 @@
 package com.hm.achievement.db;
 
 import java.io.File;
-import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.inject.Named;
@@ -18,12 +17,11 @@ import com.hm.achievement.AdvancedAchievements;
  */
 public class H2DatabaseManager extends AbstractFileDatabaseManager {
 
-	public H2DatabaseManager(@Named("main") YamlConfiguration mainConfig, Logger logger,
-			@Named("ntd") Map<String, String> namesToDisplayNames, DatabaseUpdater databaseUpdater,
+	public H2DatabaseManager(@Named("main") YamlConfiguration mainConfig, Logger logger, DatabaseUpdater databaseUpdater,
 			AdvancedAchievements advancedAchievements) {
-		super(mainConfig, logger, namesToDisplayNames, databaseUpdater, advancedAchievements, "org.h2.Driver", "jdbc:h2:./"
-				+ new File(advancedAchievements.getDataFolder(), "achievements") + ";DATABASE_TO_UPPER=false;MODE=MySQL",
-				"achievements.mv.db");
+		super(mainConfig, logger, databaseUpdater, advancedAchievements, "org.h2.Driver", "jdbc:h2:./"
+				+ new File(advancedAchievements.getDataFolder(), "achievements")
+				+ ";DATABASE_TO_UPPER=false;MODE=MySQL", "achievements.mv.db");
 
 		// Convince Maven Shade that H2 is used to prevent full exclusion during minimisation.
 		@SuppressWarnings("unused")

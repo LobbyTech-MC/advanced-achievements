@@ -1,8 +1,6 @@
 package com.hm.achievement.listener.statistics;
 
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
@@ -19,8 +17,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import com.hm.achievement.category.MultipleAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
-import com.hm.achievement.utils.RewardParser;
 
 /**
  * Listener class to deal with Places achievements.
@@ -32,9 +30,9 @@ import com.hm.achievement.utils.RewardParser;
 public class PlacesListener extends AbstractListener {
 
 	@Inject
-	public PlacesListener(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser) {
-		super(MultipleAchievements.PLACES, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+	public PlacesListener(@Named("main") YamlConfiguration mainConfig, int serverVersion, AchievementMap achievementMap,
+			CacheManager cacheManager) {
+		super(MultipleAchievements.PLACES, mainConfig, serverVersion, achievementMap, cacheManager);
 	}
 
 	@SuppressWarnings("deprecation")

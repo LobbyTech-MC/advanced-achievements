@@ -1,13 +1,9 @@
 package com.hm.achievement.listener.statistics;
 
-import java.util.List;
-import java.util.Map;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -16,12 +12,10 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.ItemStack;
 
 import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
-import com.hm.achievement.utils.InventoryHelper;
-import com.hm.achievement.utils.RewardParser;
 
 /**
  * Listener class to deal with Trades achievements.
@@ -32,34 +26,18 @@ import com.hm.achievement.utils.RewardParser;
 @Singleton
 public class TradesListener extends AbstractListener {
 
-	private final InventoryHelper inventoryHelper;
-
 	@Inject
-	public TradesListener(@Named("main") YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser,
-			InventoryHelper inventoryHelper) {
-		super(NormalAchievements.TRADES, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
-		this.inventoryHelper = inventoryHelper;
+	public TradesListener(@Named("main") YamlConfiguration mainConfig, int serverVersion, AchievementMap achievementMap,
+			CacheManager cacheManager) {
+		super(NormalAchievements.TRADES, mainConfig, serverVersion, achievementMap, cacheManager);
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onInventoryClick(InventoryClickEvent event) {
-		ItemStack item = event.getCurrentItem();
-		if (event.getRawSlot() != 2 || event.getInventory().getType() != InventoryType.MERCHANT || item == null
-				|| item.getType() == Material.AIR || event.getAction() == InventoryAction.NOTHING
-				|| event.getClick() == ClickType.NUMBER_KEY && event.getAction() == InventoryAction.HOTBAR_MOVE_AND_READD) {
-			return;
+		if ((event.getClick() != ClickType.NUMBER_KEY || event.getAction() != InventoryAction.HOTBAR_MOVE_AND_READD)
+				&& event.getRawSlot() == 2 && event.getInventory().getType() == InventoryType.MERCHANT
+				&& event.getAction() != InventoryAction.NOTHING) {
+			updateStatisticAndAwardAchievementsIfAvailable((Player) event.getWhoClicked(), 1);
 		}
-		Player player = (Player) event.getWhoClicked();
-
-		int eventAmount = item.getAmount();
-		if (event.isShiftClick()) {
-			eventAmount = Math.min(eventAmount, inventoryHelper.getAvailableSpace(player, item));
-			if (eventAmount == 0) {
-				return;
-			}
-		}
-
-		updateStatisticAndAwardAchievementsIfAvailable(player, eventAmount);
 	}
 }

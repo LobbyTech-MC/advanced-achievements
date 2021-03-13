@@ -7,7 +7,6 @@ import java.net.URLEncoder;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.inject.Named;
@@ -30,9 +29,8 @@ public class AbstractRemoteDatabaseManager extends AbstractDatabaseManager {
 	private final String databaseType;
 
 	public AbstractRemoteDatabaseManager(@Named("main") YamlConfiguration mainConfig, Logger logger,
-			@Named("ntd") Map<String, String> namesToDisplayNames, DatabaseUpdater databaseUpdater, String driverPath,
-			String databaseType) {
-		super(mainConfig, logger, namesToDisplayNames, databaseUpdater, driverPath);
+			DatabaseUpdater databaseUpdater, String driverPath, String databaseType) {
+		super(mainConfig, logger, databaseUpdater, driverPath);
 		this.databaseType = databaseType;
 	}
 
@@ -41,8 +39,8 @@ public class AbstractRemoteDatabaseManager extends AbstractDatabaseManager {
 		Class.forName(driverPath);
 
 		databaseAddress = getDatabaseAddress();
-		databaseUser = URLEncoder.encode(getDatabaseConfig("DatabaseUser", "User"), UTF_8.name());
-		databasePassword = URLEncoder.encode(getDatabaseConfig("DatabasePassword", "Password"), UTF_8.name());
+		databaseUser = URLEncoder.encode(mainConfig.getString("DatabaseUser"), UTF_8.name());
+		databasePassword = URLEncoder.encode(mainConfig.getString("DatabasePassword"), UTF_8.name());
 		additionalConnectionOptions = mainConfig.getString("AdditionalConnectionOptions");
 	}
 
@@ -53,7 +51,7 @@ public class AbstractRemoteDatabaseManager extends AbstractDatabaseManager {
 	}
 
 	private String getDatabaseAddress() {
-		String databaseAddress = getDatabaseConfig("DatabaseAddress", "Database");
+		String databaseAddress = mainConfig.getString("DatabaseAddress");
 		// Attempt to deal with common address mistakes where prefixes such as jdbc: or jdbc:mysql:// are omitted.
 		if (!databaseAddress.startsWith("jdbc:")) {
 			if (databaseAddress.startsWith(databaseType + "://")) {
@@ -63,9 +61,5 @@ public class AbstractRemoteDatabaseManager extends AbstractDatabaseManager {
 			}
 		}
 		return databaseAddress;
-	}
-
-	private String getDatabaseConfig(String newName, String oldName) {
-		return mainConfig.getString(newName, mainConfig.getString(databaseType.toUpperCase() + "." + oldName));
 	}
 }

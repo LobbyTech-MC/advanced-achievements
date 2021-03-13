@@ -14,10 +14,11 @@ import org.bukkit.entity.Player;
 import com.hm.achievement.AdvancedAchievements;
 import com.hm.achievement.category.Category;
 import com.hm.achievement.category.NormalAchievements;
+import com.hm.achievement.config.AchievementMap;
 import com.hm.achievement.db.CacheManager;
+import com.hm.achievement.domain.Achievement;
 import com.hm.achievement.lifecycle.Cleanable;
-import com.hm.achievement.particle.FancyMessageSender;
-import com.hm.achievement.utils.RewardParser;
+import com.hm.achievement.utils.FancyMessageSender;
 
 /**
  * Abstract class in charge of factoring out common functionality for the listener classes with cooldown maps.
@@ -38,9 +39,9 @@ public class AbstractRateLimitedListener extends AbstractListener implements Cle
 	private String langStatisticCooldown;
 
 	AbstractRateLimitedListener(Category category, YamlConfiguration mainConfig, int serverVersion,
-			Map<String, List<Long>> sortedThresholds, CacheManager cacheManager, RewardParser rewardParser,
-			AdvancedAchievements advancedAchievements, YamlConfiguration langConfig, Logger logger) {
-		super(category, mainConfig, serverVersion, sortedThresholds, cacheManager, rewardParser);
+			AchievementMap achievementMap, CacheManager cacheManager, AdvancedAchievements advancedAchievements,
+			YamlConfiguration langConfig, Logger logger) {
+		super(category, mainConfig, serverVersion, achievementMap, cacheManager);
 		this.advancedAchievements = advancedAchievements;
 		this.langConfig = langConfig;
 		this.logger = logger;
@@ -50,14 +51,10 @@ public class AbstractRateLimitedListener extends AbstractListener implements Cle
 	public void extractConfigurationParameters() {
 		super.extractConfigurationParameters();
 
-		List<Long> thresholds = sortedThresholds.get(category.toString());
-		hardestCategoryThreshold = thresholds == null ? Long.MAX_VALUE : thresholds.get(thresholds.size() - 1);
-		if (mainConfig.isInt("StatisticCooldown")) {
-			// Old configuration style for plugin versions up to version 5.4.
-			categoryCooldown = mainConfig.getInt("StatisticCooldown") * 1000;
-		} else {
-			categoryCooldown = mainConfig.getInt("StatisticCooldown." + category) * 1000;
-		}
+		List<Achievement> achievements = achievementMap.getForCategory(category);
+		hardestCategoryThreshold = achievements.isEmpty() ? Long.MAX_VALUE
+				: achievements.get(achievements.size() - 1).getThreshold();
+		categoryCooldown = mainConfig.getInt("StatisticCooldown." + category) * 1000;
 		configCooldownActionBar = mainConfig.getBoolean("CooldownActionBar");
 		// Action bars introduced in Minecraft 1.8. Automatically disable for older versions.
 		if (configCooldownActionBar && serverVersion < 8) {
@@ -68,8 +65,10 @@ public class AbstractRateLimitedListener extends AbstractListener implements Cle
 	}
 
 	@Override
-	public void cleanPlayerData(UUID uuid) {
-		slotsToPlayersLastActionTimes.values().forEach(m -> m.remove(uuid));
+	public void cleanPlayerData() {
+		long currentTime = System.currentTimeMillis();
+		slotsToPlayersLastActionTimes.values().forEach(playersLastActionTimes -> playersLastActionTimes.values()
+				.removeIf(lastActionTime -> currentTime > lastActionTime + categoryCooldown));
 	}
 
 	void updateStatisticAndAwardAchievementsIfAvailable(Player player, int incrementValue, int slotNumber) {
@@ -106,7 +105,7 @@ public class AbstractRateLimitedListener extends AbstractListener implements Cle
 		if (timeToWait > 0) {
 			if (configCooldownActionBar) {
 				if (category == NormalAchievements.MUSICDISCS) {
-					// Display message with a delay to avoid it being overwritten by disc name message.s
+					// Display message with a delay to avoid it being overwritten by disc name message.
 					Bukkit.getScheduler().scheduleSyncDelayedTask(advancedAchievements,
 							() -> displayActionBarMessage(player, timeToWait), 20);
 				} else {

@@ -11,7 +11,6 @@ import com.hm.achievement.gui.GUIItems;
 import com.hm.achievement.gui.MainGUI;
 import com.hm.achievement.lifecycle.Reloadable;
 import com.hm.achievement.listener.PlayerAdvancedAchievementListener;
-import com.hm.achievement.listener.QuitListener;
 import com.hm.achievement.listener.statistics.AdvancementsCompletedListener;
 import com.hm.achievement.listener.statistics.AnvilsListener;
 import com.hm.achievement.listener.statistics.ArrowsListener;
@@ -57,7 +56,6 @@ import com.hm.achievement.listener.statistics.WaterBucketsListener;
 import com.hm.achievement.listener.statistics.WinRaidListener;
 import com.hm.achievement.runnable.AchieveDistanceRunnable;
 import com.hm.achievement.runnable.AchievePlayTimeRunnable;
-import com.hm.achievement.utils.RewardParser;
 import com.hm.achievement.utils.StatisticIncreaseHandler;
 
 import dagger.Binds;
@@ -232,14 +230,6 @@ public abstract class ReloadableModule {
 	@Binds
 	@IntoSet
 	abstract Reloadable bindPluginCommandExecutor(PluginCommandExecutor pluginCommandExecutor);
-
-	@Binds
-	@IntoSet
-	abstract Reloadable bindQuitListener(QuitListener quitListener);
-
-	@Binds
-	@IntoSet
-	abstract Reloadable bindRewardParser(RewardParser rewardParser);
 
 	@Binds
 	@IntoSet

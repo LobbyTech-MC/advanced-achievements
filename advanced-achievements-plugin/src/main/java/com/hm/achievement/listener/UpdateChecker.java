@@ -3,12 +3,10 @@ package com.hm.achievement.listener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
 import javax.inject.Inject;
-import javax.inject.Singleton;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -30,7 +28,6 @@ import com.hm.achievement.AdvancedAchievements;
  * 
  * @author Pyves
  */
-@Singleton
 public class UpdateChecker implements Listener {
 
 	private final AdvancedAchievements plugin;
@@ -56,7 +53,6 @@ public class UpdateChecker implements Listener {
 	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPlayerJoin(PlayerJoinEvent event) {
-		// Check if OP to display new version message if needed.
 		if (isUpdateNeeded() && event.getPlayer().hasPermission("achievement.update")) {
 			event.getPlayer().sendMessage(pluginHeader + plugin.getDescription().getName() + " update available: v"
 					+ version + ". Download at spigotmc.org/resources/advanced-achievements.83466");
@@ -67,14 +63,7 @@ public class UpdateChecker implements Listener {
 	 * Launches a new thread to asynchronously check whether an update is available.
 	 */
 	public void launchUpdateCheckerTask() {
-		updateCheckerFutureTask = new FutureTask<>(new Callable<Boolean>() {
-
-			@Override
-			public Boolean call() throws Exception {
-
-				return checkForUpdate();
-			}
-		});
+		updateCheckerFutureTask = new FutureTask<>(() -> checkForUpdate());
 		// Run the FutureTask in a new thread.
 		new Thread(updateCheckerFutureTask).start();
 	}
